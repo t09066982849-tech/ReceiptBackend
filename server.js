@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,35 +10,46 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+// Fileforce S3 クライアント設定
+const s3Client = new S3Client({
+  region: 'ap-northeast-1',
+  credentials: {
+    accessKeyId: process.env.FILEFORCE_ACCESS_KEY,
+    secretAccessKey: process.env.FILEFORCE_SECRET_KEY,
+  },
+  endpoint: process.env.FILEFORCE_ENDPOINT,
+  forcePathStyle: true,
+});
 
-app.post('/upload', (req, res) => {
+app.post('/upload', async (req, res) => {
   console.log('📩 リクエスト受信');
-  console.log('Body keys:', Object.keys(req.body));
 
   try {
     const { photo, filename, userId } = req.body;
 
-    console.log('filename:', filename);
-    console.log('photo length:', photo ? photo.length : 'なし');
-
     if (!filename || !photo) {
-      console.log('❌ ファイル名または写真がありません');
       return res.status(400).json({ error: 'ファイル名または写真がありません' });
     }
 
     const buffer = Buffer.from(photo, 'base64');
-    const filePath = path.join(uploadDir, filename);
-    fs.writeFileSync(filePath, buffer);
+    console.log('📸 写真サイズ:', buffer.length, 'bytes');
 
-    console.log('✅ 保存成功:', filename, buffer.length, 'bytes');
+    // Fileforce にアップロード
+    const uploadParams = {
+      Bucket: process.env.FILEFORCE_BUCKET,
+      Key: `領収書/${filename}`,
+      Body: buffer,
+      ContentType: 'image/jpeg',
+    };
+
+    const command = new PutObjectCommand(uploadParams);
+    await s3Client.send(command);
+
+    console.log('✅ Fileforce 保存成功:', filename);
 
     res.json({
       success: true,
-      message: 'ファイルが保存されました',
+      message: 'Fileforce に保存されました',
       filename,
       size: buffer.length,
     });
