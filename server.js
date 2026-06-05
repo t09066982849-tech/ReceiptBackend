@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { google } = require('googleapis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,20 +8,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Fileforce S3 クライアント設定
-const s3Client = new S3Client({
-  region: 'ap-northeast-1',
+// Google Drive 認証設定
+const auth = new google.auth.GoogleAuth({
   credentials: {
-    accessKeyId: process.env.FILEFORCE_ACCESS_KEY,
-    secretAccessKey: process.env.FILEFORCE_SECRET_KEY,
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
   },
-  endpoint: process.env.FILEFORCE_ENDPOINT,
-  forcePathStyle: true,
+  scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
 
+const drive = google.drive({ version: 'v3', auth });
+
+// アップロードエンドポイント
 app.post('/upload', async (req, res) => {
   console.log('📩 リクエスト受信');
-
   try {
     const { photo, filename, userId } = req.body;
 
@@ -34,24 +32,31 @@ app.post('/upload', async (req, res) => {
     const buffer = Buffer.from(photo, 'base64');
     console.log('📸 写真サイズ:', buffer.length, 'bytes');
 
-    // Fileforce にアップロード
-    const uploadParams = {
-      Bucket: process.env.FILEFORCE_BUCKET,
-      Key: `領収書/${filename}`,
-      Body: buffer,
-      ContentType: 'image/jpeg',
-    };
+    // Google Drive にアップロード
+    const { Readable } = require('stream');
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
 
-    const command = new PutObjectCommand(uploadParams);
-    await s3Client.send(command);
+    const driveResponse = await drive.files.create({
+      requestBody: {
+        name: filename,
+        parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
+      },
+      media: {
+        mimeType: 'image/jpeg',
+        body: stream,
+      },
+    });
 
-    console.log('✅ Fileforce 保存成功:', filename);
+    console.log('✅ Google Drive 保存成功:', filename);
 
     res.json({
       success: true,
-      message: 'Fileforce に保存されました',
+      message: 'Google Drive に保存されました',
       filename,
       size: buffer.length,
+      driveFileId: driveResponse.data.id,
     });
   } catch (error) {
     console.log('❌ エラー:', error.message);
@@ -59,14 +64,7 @@ app.post('/upload', async (req, res) => {
   }
 });
 
-app.get('/download', (req, res) => {
-  const apkPath = path.join(__dirname, 'apk', 'ReceiptApp.apk');
-  if (!fs.existsSync(apkPath)) {
-    return res.status(404).json({ error: 'APK ファイルが見つかりません' });
-  }
-  res.download(apkPath, 'ReceiptApp.apk');
-});
-
+// ヘルスチェック
 app.get('/', (req, res) => {
   res.json({ message: 'ReceiptApp Backend サーバーが起動しています' });
 });
