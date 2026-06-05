@@ -8,13 +8,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Supabase クライアント設定
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// アップロードエンドポイント
 app.post('/upload', async (req, res) => {
   console.log('📩 リクエスト受信');
   try {
@@ -27,10 +25,9 @@ app.post('/upload', async (req, res) => {
     const buffer = Buffer.from(photo, 'base64');
     console.log('📸 写真サイズ:', buffer.length, 'bytes');
 
-    // Supabase Storage にアップロード
     const { data, error } = await supabase.storage
       .from('receipts')
-      .upload(`領収書/${filename}`, buffer, {
+      .upload(`receipts/${filename}`, buffer, {
         contentType: 'image/jpeg',
         upsert: false,
       });
@@ -55,7 +52,6 @@ app.post('/upload', async (req, res) => {
   }
 });
 
-// ヘルスチェック
 app.get('/', (req, res) => {
   res.json({ message: 'ReceiptApp Backend サーバーが起動しています' });
 });
