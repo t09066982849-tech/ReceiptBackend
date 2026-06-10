@@ -252,18 +252,19 @@ async function uploadPhotos() {
   btn.disabled = true;
   btn.textContent = 'アップロード中...';
 
-  const safeName = userName.replace(/[^a-zA-Z0-9]/g, '');
   let successCount = 0;
 
   for (let i = 0; i < photos.length; i++) {
     try {
       const base64 = photos[i].split(',')[1];
-      const filename = 'receipt_' + safeName + '_' + Date.now() + '_' + (i + 1) + '.jpg';
 
       const res = await fetch('/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photo: base64, filename, userId: userName }),
+        body: JSON.stringify({
+          photo: base64,
+          userId: userName
+        }),
         signal: AbortSignal.timeout(30000)
       });
 
@@ -302,11 +303,15 @@ if (userName) {
 app.post('/upload', async (req, res) => {
   console.log('リクエスト受信');
   try {
-    const { photo, filename, userId } = req.body;
+    const { photo, filename: clientFilename, userId } = req.body;
 
-    if (!filename || !photo) {
-      return res.status(400).json({ error: 'ファイル名または写真がありません' });
+    if (!photo) {
+      return res.status(400).json({ error: '写真がありません' });
     }
+
+    // サーバー側でファイル名を生成（翻訳の影響を受けない）
+    const safeName = (userId || 'unknown').replace(/[^a-zA-Z0-9]/g, '');
+    const filename = `receipt_${safeName}_${Date.now()}.jpg`;
 
     const buffer = Buffer.from(photo, 'base64');
 
