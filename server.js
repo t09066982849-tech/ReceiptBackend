@@ -119,7 +119,7 @@ app.get('/app', (req, res) => {
 <body>
 <div class="container" id="app">
   <h1>📸 ReceiptApp</h1>
-  <p id="loading">読み込み中...</p>
+  <p>読み込み中...</p>
 </div>
 
 <script>
@@ -180,19 +180,14 @@ function takePicture() {
   document.getElementById('fileInput').click();
 }
 
-function handleFiles(event) {
-  const files = Array.from(event.target.files);
-  const remaining = MAX_PHOTOS - photos.length;
-  const toAdd = files.slice(0, remaining);
-
-  toAdd.forEach(file => {
+function compressImage(file) {
+  return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      // Canvas で圧縮
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 1200;
+        const MAX_SIZE = 600;
         let width = img.width;
         let height = img.height;
 
@@ -212,13 +207,22 @@ function handleFiles(event) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL('image/jpeg', 0.6);
-        photos.push(compressed);
-        renderMain();
+        resolve(canvas.toDataURL('image/jpeg', 0.2));
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+function handleFiles(event) {
+  const files = Array.from(event.target.files);
+  const remaining = MAX_PHOTOS - photos.length;
+  const toAdd = files.slice(0, remaining);
+
+  Promise.all(toAdd.map(file => compressImage(file))).then(compressed => {
+    photos = [...photos, ...compressed];
+    renderMain();
   });
 
   event.target.value = '';
@@ -259,7 +263,8 @@ async function uploadPhotos() {
       const res = await fetch('/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photo: base64, filename, userId: userName })
+        body: JSON.stringify({ photo: base64, filename, userId: userName }),
+        signal: AbortSignal.timeout(30000)
       });
 
       if (res.ok) successCount++;
