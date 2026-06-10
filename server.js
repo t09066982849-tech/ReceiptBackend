@@ -44,7 +44,7 @@ app.get('/app', (req, res) => {
     h1 { font-size: 28px; margin-bottom: 8px; }
     .user-text { color: #666; margin-bottom: 24px; font-size: 14px; }
     .label { font-size: 16px; margin-bottom: 12px; color: #333; }
-    input {
+    input[type="text"] {
       width: 100%;
       padding: 12px;
       border: 1px solid #ccc;
@@ -123,7 +123,6 @@ app.get('/app', (req, res) => {
 </div>
 
 <script>
-const SERVER_URL = '';
 const MAX_PHOTOS = 3;
 let photos = [];
 let userName = localStorage.getItem('userName');
@@ -173,13 +172,12 @@ function renderMain() {
     \` : ''}
     <div id="result"></div>
     <button class="change-name" onclick="changeName()">名前を変更する</button>
-    <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none" multiple onchange="handleFiles(event)" />
+    <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none" onchange="handleFiles(event)" />
   \`;
 }
 
 function takePicture() {
-  const input = document.getElementById('fileInput');
-  input.click();
+  document.getElementById('fileInput').click();
 }
 
 function handleFiles(event) {
@@ -190,8 +188,35 @@ function handleFiles(event) {
   toAdd.forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      photos.push(e.target.result);
-      renderMain();
+      // Canvas で圧縮
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round(height * MAX_SIZE / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round(width * MAX_SIZE / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.6);
+        photos.push(compressed);
+        renderMain();
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
