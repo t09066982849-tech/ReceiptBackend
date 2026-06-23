@@ -8,10 +8,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+console.log('SUPABASE_URL:', supabaseUrl ? '設定済み' : '未設定');
+console.log('SUPABASE_KEY:', supabaseKey ? '設定済み' : '未設定');
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('環境変数が設定されていません');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Web アプリページ
 app.get('/app', (req, res) => {
@@ -121,7 +129,6 @@ app.get('/app', (req, res) => {
   <h1>📸 ReceiptApp</h1>
   <p>読み込み中...</p>
 </div>
-
 <script>
 const MAX_PHOTOS = 3;
 let photos = [];
@@ -190,19 +197,11 @@ function compressImage(file) {
         const MAX_SIZE = 600;
         let width = img.width;
         let height = img.height;
-
         if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round(height * MAX_SIZE / width);
-            width = MAX_SIZE;
-          }
+          if (width > MAX_SIZE) { height = Math.round(height * MAX_SIZE / width); width = MAX_SIZE; }
         } else {
-          if (height > MAX_SIZE) {
-            width = Math.round(width * MAX_SIZE / height);
-            height = MAX_SIZE;
-          }
+          if (height > MAX_SIZE) { width = Math.round(width * MAX_SIZE / height); height = MAX_SIZE; }
         }
-
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
@@ -219,12 +218,10 @@ function handleFiles(event) {
   const files = Array.from(event.target.files);
   const remaining = MAX_PHOTOS - photos.length;
   const toAdd = files.slice(0, remaining);
-
   Promise.all(toAdd.map(file => compressImage(file))).then(compressed => {
     photos = [...photos, ...compressed];
     renderMain();
   });
-
   event.target.value = '';
 }
 
@@ -247,33 +244,24 @@ function changeName() {
 
 async function uploadPhotos() {
   if (photos.length === 0) { alert('写真を撮影してください'); return; }
-
   const btn = document.getElementById('uploadBtn');
   btn.disabled = true;
   btn.textContent = 'アップロード中...';
-
   let successCount = 0;
-
   for (let i = 0; i < photos.length; i++) {
     try {
       const base64 = photos[i].split(',')[1];
-
       const res = await fetch('/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          photo: base64,
-          userId: userName
-        }),
+        body: JSON.stringify({ photo: base64, userId: userName }),
         signal: AbortSignal.timeout(30000)
       });
-
       if (res.ok) successCount++;
     } catch (e) {
       console.error(e);
     }
   }
-
   const result = document.getElementById('result');
   if (successCount === photos.length) {
     result.className = 'result success';
@@ -288,12 +276,7 @@ async function uploadPhotos() {
   }
 }
 
-// 初期表示
-if (userName) {
-  renderMain();
-} else {
-  renderNameForm();
-}
+if (userName) { renderMain(); } else { renderNameForm(); }
 </script>
 </body>
 </html>`);
@@ -301,23 +284,23 @@ if (userName) {
 
 // アップロードエンドポイント
 app.post('/upload', async (req, res) => {
-  console.log('リクエスト受信');
   try {
-    const { photo, filename: clientFilename, userId } = req.body;
+    const { photo, userId } = req.body;
 
     if (!photo) {
       return res.status(400).json({ error: '写真がありません' });
     }
 
-    // サーバー側でファイル名を生成（翻訳の影響を受けない）
-    const safeName = (userId || 'unknown').replace(/[^a-zA-Z0-9]/g, '');
-    const filename = `receipt_${safeName}_${Date.now()}.jpg`;
+    const safeName = (userId || 'unknown').replace(/[^a-zA-Z0-9]/g, '') || 'unknown';
+    const filename = 'receipt_' + safeName + '_' + Date.now() + '.jpg';
+
+    console.log('生成ファイル名:', filename);
 
     const buffer = Buffer.from(photo, 'base64');
 
     const { data, error } = await supabase.storage
       .from('receipts')
-      .upload(`receipts/${filename}`, buffer, {
+      .upload('receipts/' + filename, buffer, {
         contentType: 'image/jpeg',
         upsert: false,
       });
@@ -332,7 +315,7 @@ app.post('/upload', async (req, res) => {
     res.json({
       success: true,
       message: 'Supabase に保存されました',
-      filename,
+      filename: filename,
       size: buffer.length,
     });
   } catch (error) {
@@ -347,5 +330,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`サーバーが起動: ポート ${PORT}`);
+  console.log('サーバーが起動: ポート ' + PORT);
 });
