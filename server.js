@@ -21,10 +21,21 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// 毎週月曜日の朝9時に Supabase にアクセスして停止を防ぐ
+const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const { data, error } = await supabase.storage.from('receipts').list('receipts');
+    console.log('定期アクセス成功（Supabase 停止防止）');
+  } catch (e) {
+    console.log('定期アクセスエラー:', e.message);
+  }
+}, SEVEN_DAYS);
+
 // Web アプリページ
 app.get('/app', (req, res) => {
   res.send(`<!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" translate="no">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
