@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,12 +21,13 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 毎週月曜日の朝9時に Supabase にアクセスして停止を防ぐ
+// 毎週 Supabase にアクセスして停止を防ぐ
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 setInterval(async () => {
   try {
-    const { data, error } = await supabase.storage.from('receipts').list('receipts');
+    await supabase.storage.from('receipts').list('receipts');
     console.log('定期アクセス成功（Supabase 停止防止）');
   } catch (e) {
     console.log('定期アクセスエラー:', e.message);
@@ -322,6 +324,27 @@ app.post('/upload', async (req, res) => {
     }
 
     console.log('保存成功:', filename);
+
+    // メール通知
+    try {
+      await resend.emails.send({
+        from: 'receipt@izukura.co.jp',
+        to: 'shimaki@izukura.co.jp',
+        subject: '【領収書】新しい写真が届きました',
+        text: [
+          '領収書が届きました。',
+          '',
+          '担当者：' + (userId || '不明'),
+          'ファイル名：' + filename,
+          '受信日時：' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+          '',
+          'Fileforceで確認してください。',
+        ].join('\n'),
+      });
+      console.log('メール送信成功');
+    } catch (mailError) {
+      console.log('メール送信エラー:', mailError.message);
+    }
 
     res.json({
       success: true,
