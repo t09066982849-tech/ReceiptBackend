@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
-const { Resend } = require('resend');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,7 +20,16 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Resend の初期化（APIキーがある場合のみ）
+let resend = null;
+if (process.env.RESEND_API_KEY) {
+  const { Resend } = require('resend');
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log('Resend: 設定済み');
+} else {
+  console.log('Resend: 未設定');
+}
 
 // 毎週 Supabase にアクセスして停止を防ぐ
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -326,24 +334,26 @@ app.post('/upload', async (req, res) => {
     console.log('保存成功:', filename);
 
     // メール通知
-    try {
-      await resend.emails.send({
-        from: 'receipt@izukura.co.jp',
-        to: 'shimaki@izukura.co.jp',
-        subject: '【領収書】新しい写真が届きました',
-        text: [
-          '領収書が届きました。',
-          '',
-          '担当者：' + (userId || '不明'),
-          'ファイル名：' + filename,
-          '受信日時：' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
-          '',
-          'Fileforceで確認してください。',
-        ].join('\n'),
-      });
-      console.log('メール送信成功');
-    } catch (mailError) {
-      console.log('メール送信エラー:', mailError.message);
+    if (resend) {
+      try {
+        await resend.emails.send({
+          from: 'receipt@izukura.co.jp',
+          to: 'shimaki@izukura.co.jp',
+          subject: '【領収書】新しい写真が届きました',
+          text: [
+            '領収書が届きました。',
+            '',
+            '担当者：' + (userId || '不明'),
+            'ファイル名：' + filename,
+            '受信日時：' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+            '',
+            'Fileforceで確認してください。',
+          ].join('\n'),
+        });
+        console.log('メール送信成功');
+      } catch (mailError) {
+        console.log('メール送信エラー:', mailError.message);
+      }
     }
 
     res.json({
