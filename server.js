@@ -8,6 +8,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// デバッグ：環境変数一覧を表示
+console.log('=== 環境変数一覧 ===');
+console.log(Object.keys(process.env).filter(k => !k.startsWith('npm')).join(', '));
+console.log('===================');
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
