@@ -42,6 +42,26 @@ setInterval(async () => {
   }
 }, SEVEN_DAYS);
 
+// ★ テスト送信エンドポイント（ブラウザで /test-mail にアクセスするだけで送信テスト）
+app.get('/test-mail', async (req, res) => {
+  if (!resend) {
+    return res.json({ error: 'Resend未設定（MAILKEYなし）' });
+  }
+  try {
+    const result = await resend.emails.send({
+      from: 'receipt@izukura.co.jp',
+      to: 'shimaki@izukura.co.jp',
+      subject: '【テスト】領収書メール確認',
+      text: 'これはテスト送信です。\n\nメール通知が正常に動作しています。',
+    });
+    console.log('テストメール送信成功:', JSON.stringify(result));
+    res.json({ success: true, result });
+  } catch (e) {
+    console.error('テストメール送信エラー:', JSON.stringify(e));
+    res.json({ success: false, error: e.message, detail: JSON.stringify(e) });
+  }
+});
+
 // Web アプリページ
 app.get('/app', (req, res) => {
   res.send(`<!DOCTYPE html>
@@ -336,7 +356,7 @@ app.post('/upload', async (req, res) => {
     // メール通知
     if (resend) {
       try {
-        await resend.emails.send({
+        const mailResult = await resend.emails.send({
           from: 'receipt@izukura.co.jp',
           to: 'shimaki@izukura.co.jp',
           subject: '【領収書】新しい写真が届きました',
@@ -350,10 +370,14 @@ app.post('/upload', async (req, res) => {
             'Fileforceで確認してください。',
           ].join('\n'),
         });
-        console.log('メール送信成功');
+        // ★ 成功時も結果オブジェクトを出力
+        console.log('メール送信成功:', JSON.stringify(mailResult));
       } catch (mailError) {
-        console.log('メール送信エラー:', mailError.message);
+        // ★ エラー全体を出力（messageだけでなく詳細も）
+        console.error('メール送信エラー:', JSON.stringify(mailError));
       }
+    } else {
+      console.log('メール未設定のためスキップ');
     }
 
     res.json({
