@@ -21,15 +21,25 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Resend の初期化（APIキーがある場合のみ）
+// Resend の初期化（デバッグログ付き）
 let resend = null;
+console.log('【デバッグ】MAILKEY存在確認:', process.env.MAILKEY ? 'あり' : 'なし');
 if (process.env.MAILKEY) {
-  const { Resend } = require('resend');
-  resend = new Resend(process.env.MAILKEY);
-  console.log('Resend: 設定済み');
+  try {
+    console.log('【デバッグ】Resendモジュール読み込み開始');
+    const { Resend } = require('resend');
+    console.log('【デバッグ】Resendモジュール読み込み成功');
+    resend = new Resend(process.env.MAILKEY);
+    console.log('【デバッグ】resendオブジェクト型:', typeof resend);
+    console.log('【デバッグ】resendオブジェクト:', resend ? 'オブジェクト作成成功' : 'null');
+    console.log('Resend: 設定済み');
+  } catch (e) {
+    console.error('【デバッグ】Resend初期化エラー:', e.message);
+  }
 } else {
   console.log('Resend: 未設定');
 }
+console.log('【デバッグ】サーバー起動後のresend:', resend ? 'オブジェクト存在' : 'null/undefined');
 
 // 毎週 Supabase にアクセスして停止を防ぐ
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
@@ -44,6 +54,8 @@ setInterval(async () => {
 
 // ★ テスト送信エンドポイント（ブラウザで /test-mail にアクセスするだけで送信テスト）
 app.get('/test-mail', async (req, res) => {
+  console.log('【/test-mail】リクエスト受信');
+  console.log('【/test-mail】resend:', resend ? 'オブジェクト存在' : 'null/undefined');
   if (!resend) {
     return res.json({ error: 'Resend未設定（MAILKEYなし）' });
   }
