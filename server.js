@@ -8,11 +8,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// デバッグ：環境変数一覧を表示
-console.log('=== 環境変数一覧 ===');
-console.log(Object.keys(process.env).filter(k => !k.startsWith('npm')).join(', '));
-console.log('===================');
-
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
@@ -28,9 +23,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Resend の初期化（APIキーがある場合のみ）
 let resend = null;
-if (process.env.RESEND_API_KEY) {
+if (process.env.MAILKEY) {
   const { Resend } = require('resend');
-  resend = new Resend(process.env.RESEND_API_KEY);
+  resend = new Resend(process.env.MAILKEY);
   console.log('Resend: 設定済み');
 } else {
   console.log('Resend: 未設定');
